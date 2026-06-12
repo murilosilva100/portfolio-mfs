@@ -6,23 +6,45 @@ export function Preloader({ onComplete }) {
   const [count, setCount] = useState(0)
 
   useEffect(() => {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const returningVisitor = sessionStorage.getItem('mfs-visited') === 'true'
     const progress = { value: 0 }
-    const tween = gsap.to(progress, {
-      value: 100,
-      duration: 1.8,
-      ease: 'power3.inOut',
-      onUpdate: () => setCount(Math.round(progress.value)),
-      onComplete: () => {
-        gsap.timeline({ onComplete })
-          .to(root.current.querySelector('.preloader__line'), { scaleX: 0, transformOrigin: 'right', duration: 0.45 })
-          .to(root.current, { yPercent: -100, duration: 0.9, ease: 'power4.inOut' }, '-=0.1')
-      },
+    let tween
+    let cancelled = false
+
+    const image = new Image()
+    image.src = '/murilo-profile.jpeg'
+    const imageReady = image.decode?.().catch(() => {}) || Promise.resolve()
+    const fontsReady = document.fonts?.ready || Promise.resolve()
+    const minimumDelay = new Promise((resolve) => window.setTimeout(resolve, returningVisitor ? 120 : 650))
+
+    Promise.all([imageReady, fontsReady, minimumDelay]).then(() => {
+      if (cancelled) return
+      tween = gsap.to(progress, {
+        value: 100,
+        duration: reduceMotion ? 0.01 : returningVisitor ? 0.18 : 0.65,
+        ease: 'power2.out',
+        onUpdate: () => setCount(Math.round(progress.value)),
+        onComplete: () => {
+          sessionStorage.setItem('mfs-visited', 'true')
+          gsap.to(root.current, {
+            yPercent: -100,
+            duration: reduceMotion ? 0.01 : 0.75,
+            ease: 'power4.inOut',
+            onComplete,
+          })
+        },
+      })
     })
-    return () => tween.kill()
+
+    return () => {
+      cancelled = true
+      tween?.kill()
+    }
   }, [onComplete])
 
   return (
-    <div className="preloader" ref={root}>
+    <div className="preloader" ref={root} role="status" aria-live="polite" aria-label="Carregando portfólio">
       <div className="preloader__mark">M<span>F</span></div>
       <div className="preloader__bottom">
         <span>Carregando experiência</span>

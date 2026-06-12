@@ -8,6 +8,17 @@ import { projects } from './data/projects'
 gsap.registerPlugin(ScrollTrigger)
 
 const Arrow = () => <span aria-hidden="true">↗</span>
+const PROJECT_AUTOPLAY_DELAY = 7000
+
+function ContactIcon({ type }) {
+  const paths = {
+    email: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
+    linkedin: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M8 10v7M8 7v.01M12 17v-7M12 13.5c0-2 5-2.5 5 1V17" /></>,
+    github: <><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3.3-.4 6.8-1.6 6.8-7A5.4 5.4 0 0 0 19.4 4 5 5 0 0 0 19.3.5S18.2.1 15 1.8a13.4 13.4 0 0 0-7 0C4.8.1 3.7.5 3.7.5A5 5 0 0 0 3.6 4a5.4 5.4 0 0 0-1.4 3.7c0 5.4 3.5 6.6 6.8 7A4.8 4.8 0 0 0 8 18v4" /><path d="M8 19c-3 .9-3-1.5-4.2-2" /></>,
+  }
+
+  return <svg className="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[type]}</svg>
+}
 
 const stackGroups = [
   { title: 'Front-End', index: '01', items: ['HTML', 'CSS', 'JavaScript', 'React', 'Vite'] },
@@ -18,15 +29,20 @@ const stackGroups = [
 ]
 
 function App() {
+  const reduceMotion = useRef(window.matchMedia('(prefers-reduced-motion: reduce)').matches).current
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 640px)').matches)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('Todos')
   const [activeProject, setActiveProject] = useState(0)
   const [carouselHovered, setCarouselHovered] = useState(false)
+  const [carouselAnimating, setCarouselAnimating] = useState(false)
+  const [autoplayEnabled, setAutoplayEnabled] = useState(() => !reduceMotion && !window.matchMedia('(max-width: 640px)').matches)
   const [headerVisible, setHeaderVisible] = useState(true)
   const [scrollProgress, setScrollProgress] = useState(0)
   const mainRef = useRef(null)
   const cursorRef = useRef(null)
   const projectScrollRef = useRef(null)
+  const programmaticScrollRef = useRef(false)
   const headerTimerRef = useRef(null)
 
   const filters = ['Todos', 'Mobile', 'Web', 'Sistemas']
@@ -36,14 +52,28 @@ function App() {
     if (filter === 'Web') return /Web|React|JavaScript|HTML|CSS/.test(`${project.tech} ${project.category}`)
     return /Java|C|Systems|Desktop/.test(`${project.tech} ${project.category}`)
   })
+  const autoplayAvailable = !reduceMotion && !isMobile
+  const autoplayActive = autoplayAvailable && autoplayEnabled
 
   const finishLoading = useCallback(() => setLoading(false), [])
 
   useEffect(() => {
+    const mobileQuery = window.matchMedia('(max-width: 640px)')
+    const updateDeviceMode = (event) => {
+      setIsMobile(event.matches)
+      if (event.matches) setAutoplayEnabled(false)
+    }
+
+    mobileQuery.addEventListener('change', updateDeviceMode)
+    return () => mobileQuery.removeEventListener('change', updateDeviceMode)
+  }, [])
+
+  useEffect(() => {
     if (loading) return
+    if (reduceMotion) return undefined
     const ctx = gsap.context(() => {
       gsap.from('.hero-reveal', { yPercent: 120, duration: 1.15, stagger: 0.08, ease: 'power4.out' })
-      gsap.from('.hero__portrait, .hero__scroll', { opacity: 0, y: 30, duration: 1, delay: 0.55, stagger: 0.12, ease: 'power3.out' })
+      gsap.from('.hero__portrait', { opacity: 0, y: 30, duration: 1, delay: 0.55, ease: 'power3.out' })
 
       gsap.utils.toArray('[data-reveal]').forEach((element) => {
         gsap.from(element, {
@@ -56,7 +86,7 @@ function App() {
       })
     }, mainRef)
     return () => ctx.revert()
-  }, [loading])
+  }, [loading, reduceMotion])
 
   useEffect(() => {
     const cursor = cursorRef.current
@@ -78,7 +108,7 @@ function App() {
     }
   }, [loading, filter])
 
-  const goToProject = useCallback((index, behavior = 'smooth') => {
+  const goToProject = useCallback((index, behavior = reduceMotion ? 'auto' : 'smooth') => {
     const scroller = projectScrollRef.current
     if (!scroller) return
     const cards = scroller.querySelectorAll('.project-card')
@@ -87,9 +117,32 @@ function App() {
     const normalizedIndex = (index + cards.length) % cards.length
     const card = cards[normalizedIndex]
     const centeredPosition = card.offsetLeft - (scroller.clientWidth - card.offsetWidth) / 2
-    scroller.scrollTo({ left: centeredPosition, behavior })
+    gsap.killTweensOf(scroller)
+
+    if (behavior === 'auto') {
+      programmaticScrollRef.current = false
+      setCarouselAnimating(false)
+      scroller.scrollLeft = centeredPosition
+    } else {
+      programmaticScrollRef.current = true
+      setCarouselAnimating(true)
+      gsap.to(scroller, {
+        scrollLeft: centeredPosition,
+        duration: 0.78,
+        ease: 'power3.inOut',
+        overwrite: 'auto',
+        onComplete: () => {
+          programmaticScrollRef.current = false
+          setCarouselAnimating(false)
+        },
+        onInterrupt: () => {
+          programmaticScrollRef.current = false
+          setCarouselAnimating(false)
+        },
+      })
+    }
     setActiveProject(normalizedIndex)
-  }, [])
+  }, [reduceMotion])
 
   useEffect(() => {
     const scroller = projectScrollRef.current
@@ -97,6 +150,7 @@ function App() {
     let animationFrame
 
     const updateCenteredProject = () => {
+      if (programmaticScrollRef.current) return
       cancelAnimationFrame(animationFrame)
       animationFrame = requestAnimationFrame(() => {
         const viewportCenter = scroller.scrollLeft + scroller.clientWidth / 2
@@ -129,10 +183,10 @@ function App() {
   }, [filter, goToProject])
 
   useEffect(() => {
-    if (carouselHovered || filteredProjects.length < 2) return undefined
-    const autoplay = window.setInterval(() => goToProject(activeProject + 1), 10000)
-    return () => window.clearInterval(autoplay)
-  }, [activeProject, carouselHovered, filteredProjects.length, goToProject])
+    if (!autoplayActive || carouselHovered || filteredProjects.length < 2) return undefined
+    const autoplay = window.setTimeout(() => goToProject(activeProject + 1), PROJECT_AUTOPLAY_DELAY)
+    return () => window.clearTimeout(autoplay)
+  }, [activeProject, autoplayActive, carouselHovered, filteredProjects.length, goToProject])
 
   useEffect(() => {
     let lastScroll = window.scrollY
@@ -191,17 +245,25 @@ function App() {
   return (
     <>
       {loading && <Preloader onComplete={finishLoading} />}
+      <a className="skip-link" href="#conteudo">Pular para o conteúdo</a>
       <div className="cursor" ref={cursorRef} />
       <div className="page-progress" aria-hidden="true"><span style={{ transform: `scaleX(${scrollProgress})` }} /></div>
-      <main ref={mainRef}>
-        <header className={`nav ${headerVisible ? 'nav--visible' : 'nav--hidden'} ${scrollProgress === 0 ? 'nav--top' : ''}`} onMouseEnter={showHeader}>
+      <main id="conteudo" ref={mainRef} tabIndex="-1">
+        <header
+          className={`nav ${headerVisible ? 'nav--visible' : 'nav--hidden'} ${scrollProgress === 0 ? 'nav--top' : ''}`}
+          onMouseEnter={showHeader}
+          onFocusCapture={() => {
+            setHeaderVisible(true)
+            window.clearTimeout(headerTimerRef.current)
+          }}
+        >
           <a className="logo" href="#top" aria-label="Voltar ao início">M<span>F</span></a>
           <nav aria-label="Navegação principal">
             <a href="#top">Início</a>
             <a href="#stack">Stack</a>
             <a href="#formacao">Formação</a>
             <a href="#certificacoes">Certificações</a>
-            <a href="#projetos">Experiência</a>
+            <a href="#projetos">Projetos</a>
             <a href="#contato">Contato</a>
           </nav>
           <a className="availability" href="#contato"><i /> Disponível para projetos</a>
@@ -211,7 +273,7 @@ function App() {
           <HeroAtmosphere />
           <div className="hero__inner shell">
             <div className="hero__content">
-              <div className="eyebrow"><span>01</span> Desenvolvedor de software · Brasil</div>
+              <div className="eyebrow"><span>01</span><span className="eyebrow__text">Desenvolvedor de Software · Brasília, DF</span></div>
               <p className="hero__hello hero-reveal">Olá, eu sou</p>
               <h1>
                 <span className="hero-line"><span className="hero-reveal">Murilo Farias</span></span>
@@ -225,19 +287,24 @@ function App() {
             </div>
             <div className="hero__portrait">
               <div className="hero__portrait-frame">
-                <img src="/murilo-profile.jpeg" alt="Murilo Farias Silva em seu espaço de desenvolvimento" />
+                <img src="/murilo-profile.jpeg" width="1200" height="1600" fetchPriority="high" alt="Murilo Farias Silva em seu espaço de desenvolvimento" />
               </div>
               <div className="hero__portrait-caption"><span>Desenvolvedor em formação</span><span>2026</span></div>
               <span className="hero__portrait-orbit" aria-hidden="true">Código · Produto · Movimento ·</span>
             </div>
           </div>
-          <a className="hero__scroll" href="#stack"><span>Descobrir</span><i /></a>
         </section>
 
         <section className="marquee" aria-hidden="true">
-          <div className="marquee__track">
-            <span>DESIGN · CÓDIGO · MOVIMENTO · EXPERIÊNCIA · </span>
-            <span>DESIGN · CÓDIGO · MOVIMENTO · EXPERIÊNCIA · </span>
+          <div className="marquee__ribbon">
+            <div className="marquee__track">
+              {[0, 1].map((group) => (
+                <div className="marquee__group" key={group}>
+                  <span>DESIGN · CÓDIGO · MOVIMENTO · EXPERIÊNCIA ·</span>
+                  <span>DESIGN · CÓDIGO · MOVIMENTO · EXPERIÊNCIA ·</span>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -254,6 +321,7 @@ function App() {
                   <span>/{group.index}</span>
                   <h3>{group.title}</h3>
                 </div>
+                <span className="stack-card__watermark" aria-hidden="true">{group.title.slice(0, 2)}</span>
                 <div className="stack-card__items">
                   {group.items.map((item) => <span key={item}>{item}</span>)}
                 </div>
@@ -266,13 +334,13 @@ function App() {
           <div className="shell journey__layout">
             <div className="section-index" data-reveal><span>03</span><p>Formação acadêmica</p></div>
             <div className="education" data-reveal>
-              <span className="education__status">Em formação</span>
+              <div className="education__topline"><span>Universidade Católica de Brasília</span><span className="education__status">Em formação</span></div>
               <div className="education__content">
                 <p>Graduação</p>
                 <h2>Análise e Desenvolvimento<br />de Sistemas</h2>
                 <div className="education__meta">
-                  <span>Universidade Católica de Brasília</span>
-                  <span>UCB</span>
+                  <span>Curso superior de tecnologia</span>
+                  <span>UCB · Brasília</span>
                 </div>
               </div>
               <span className="education__mark">ADS</span>
@@ -286,15 +354,22 @@ function App() {
             <div className="certifications__intro" data-reveal>
               <h2>Aprendizado<br /><em>contínuo.</em></h2>
               <p>Cursos, credenciais e estudos complementares que expandem minha prática além da formação acadêmica.</p>
+              <div className="certifications__meta">
+                <span>Formação complementar</span>
+                <span>Perfil atualizado</span>
+              </div>
             </div>
             <a className="credential-card" href="https://www.linkedin.com/in/murilofariassilva/details/certifications/" target="_blank" rel="noreferrer" data-reveal>
               <div className="credential-card__top"><span>Credenciais verificadas</span><Arrow /></div>
-              <div className="credential-card__seal">in</div>
-              <div>
+              <div className="credential-card__identity">
+                <div className="credential-card__icon"><ContactIcon type="linkedin" /></div>
+                <span>LinkedIn</span>
+              </div>
+              <div className="credential-card__content">
                 <h3>Certificados e licenças</h3>
                 <p>Consulte a relação atualizada de certificados publicados no meu perfil profissional.</p>
               </div>
-              <span className="credential-card__link">Visualizar no LinkedIn</span>
+              <span className="credential-card__link">Visualizar credenciais <Arrow /></span>
             </a>
           </div>
         </section>
@@ -302,38 +377,68 @@ function App() {
         <section className="projects section" id="projetos">
           <div className="shell projects__head" data-reveal>
             <div className="section-index"><span>05</span><p>Projetos selecionados</p></div>
-            <h2>Experiência<span>.</span></h2>
+            <h2>Projetos<span>.</span></h2>
             <p className="projects__count">{String(filteredProjects.length).padStart(2, '0')} projetos públicos</p>
           </div>
 
           <div className="filters shell" data-reveal>
             {filters.map((item) => (
-              <button className={filter === item ? 'active' : ''} onClick={() => setFilter(item)} key={item}>{item}</button>
+              <button aria-pressed={filter === item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)} key={item}>{item}</button>
             ))}
           </div>
 
           <div
-            className="project-carousel"
+            className={`project-carousel ${!autoplayActive ? 'project-carousel--paused' : ''} ${carouselHovered ? 'project-carousel--interacting' : ''} ${carouselAnimating ? 'project-carousel--animating' : ''}`}
             onMouseEnter={() => setCarouselHovered(true)}
             onMouseLeave={() => setCarouselHovered(false)}
+            onFocusCapture={() => setCarouselHovered(true)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setCarouselHovered(false)
+            }}
             data-reveal
           >
             <div className="project-carousel__controls shell">
               <div className="project-carousel__status">
                 <span>{String(activeProject + 1).padStart(2, '0')}</span>
-                <i key={`${activeProject}-${carouselHovered}`} />
+                <i key={`${activeProject}-${carouselHovered}-${autoplayActive}`} />
                 <span>{String(filteredProjects.length).padStart(2, '0')}</span>
               </div>
-              <p>{carouselHovered ? 'Navegação pausada' : 'Próximo projeto em 10s'}</p>
+              <p aria-live="polite">{isMobile ? 'Navegação manual no celular' : reduceMotion ? 'Movimento reduzido ativado' : !autoplayEnabled ? 'Reprodução automática desativada' : carouselHovered ? 'Navegação pausada' : 'Próximo projeto em 7s'}</p>
               <div className="project-carousel__buttons">
                 <button type="button" onClick={() => goToProject(activeProject - 1)} aria-label="Projeto anterior">←</button>
+                <button
+                  className="project-carousel__toggle"
+                  type="button"
+                  aria-pressed={!autoplayEnabled}
+                  disabled={!autoplayAvailable}
+                  onClick={() => setAutoplayEnabled((enabled) => !enabled)}
+                  aria-label={!autoplayAvailable ? 'Troca automática indisponível neste dispositivo' : autoplayEnabled ? 'Pausar troca automática' : 'Retomar troca automática'}
+                >
+                  {autoplayEnabled ? 'II' : '▶'}
+                </button>
                 <button type="button" onClick={() => goToProject(activeProject + 1)} aria-label="Próximo projeto">→</button>
               </div>
             </div>
-            <div className="project-scroll" ref={projectScrollRef}>
+            <div
+              className={`project-scroll ${carouselAnimating ? 'project-scroll--animating' : ''}`}
+              ref={projectScrollRef}
+              tabIndex="0"
+              role="region"
+              aria-label="Carrossel de projetos"
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowLeft') {
+                  event.preventDefault()
+                  goToProject(activeProject - 1)
+                }
+                if (event.key === 'ArrowRight') {
+                  event.preventDefault()
+                  goToProject(activeProject + 1)
+                }
+              }}
+            >
               <div className="project-grid">
                 {filteredProjects.map((project, index) => (
-                  <article className={`project-card ${index === activeProject ? 'project-card--active' : ''}`} key={project.slug}>
+                  <article className={`project-card ${index === activeProject ? 'project-card--active' : ''}`} aria-current={index === activeProject ? 'true' : undefined} key={project.slug}>
                     <a href={project.live || project.github} target="_blank" rel="noreferrer" aria-label={`Abrir ${project.title}`}>
                       <div className="project-card__visual" style={{ '--accent': project.color || '#2b2d28' }}>
                         <span className="project-card__number">/{String(index + 1).padStart(2, '0')}</span>
@@ -348,6 +453,7 @@ function App() {
                         </div>
                         <div className="project-card__meta"><span>{project.category}</span><span>{project.tech}</span><span>{project.year}</span></div>
                       </div>
+                      <span className="project-card__action">{project.live ? 'Visitar projeto' : 'Explorar código'} <Arrow /></span>
                     </a>
                   </article>
                 ))}
@@ -362,23 +468,25 @@ function App() {
         <section className="contact section" id="contato">
           <div className="shell contact__inner" data-reveal>
             <div className="section-index"><span>06</span><p>Vamos conversar</p></div>
-            <p className="contact__kicker">Tem uma ideia, oportunidade ou apenas quer trocar uma ideia?</p>
-            <h2>Vamos criar algo<br /><em>relevante</em> juntos.</h2>
+            <div className="contact__heading">
+              <h2>Vamos criar algo<br /><em>relevante</em> juntos.</h2>
+              <p className="contact__kicker">Estou aberto a oportunidades, colaborações e boas conversas sobre tecnologia, produto e novas ideias.</p>
+            </div>
             <div className="contact__channels">
-              <a href="mailto:contato@murilofarias.dev">
-                <span className="contact__channel-index">01</span>
-                <div><small>E-mail</small><strong>contato@murilofarias.dev</strong></div>
-                <Arrow />
+              <a className="contact-card" href="mailto:murilofsilva.dev@gmail.com">
+                <div className="contact-card__top"><ContactIcon type="email" /><span>01</span></div>
+                <div className="contact-card__body"><small>E-mail</small><strong>murilofsilva.dev@gmail.com</strong><p>Para propostas e contatos diretos.</p></div>
+                <span className="contact-card__action">Escrever mensagem <Arrow /></span>
               </a>
-              <a href="https://www.linkedin.com/in/murilofariassilva" target="_blank" rel="noreferrer">
-                <span className="contact__channel-index">02</span>
-                <div><small>LinkedIn</small><strong>/in/murilofariassilva</strong></div>
-                <Arrow />
+              <a className="contact-card" href="https://www.linkedin.com/in/murilofariassilva" target="_blank" rel="noreferrer">
+                <div className="contact-card__top"><ContactIcon type="linkedin" /><span>02</span></div>
+                <div className="contact-card__body"><small>LinkedIn</small><strong>Murilo Farias Silva</strong><p>Trajetória, formação e conexões profissionais.</p></div>
+                <span className="contact-card__action">Conectar no LinkedIn <Arrow /></span>
               </a>
-              <a href="https://github.com/murilosilva100" target="_blank" rel="noreferrer">
-                <span className="contact__channel-index">03</span>
-                <div><small>GitHub</small><strong>@murilosilva100</strong></div>
-                <Arrow />
+              <a className="contact-card" href="https://github.com/murilosilva100" target="_blank" rel="noreferrer">
+                <div className="contact-card__top"><ContactIcon type="github" /><span>03</span></div>
+                <div className="contact-card__body"><small>GitHub</small><strong>@murilosilva100</strong><p>Código, estudos e projetos em evolução.</p></div>
+                <span className="contact-card__action">Explorar repositórios <Arrow /></span>
               </a>
             </div>
           </div>
