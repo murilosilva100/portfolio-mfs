@@ -7,8 +7,30 @@ import { projects } from './data/projects'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const Arrow = () => <span aria-hidden="true">↗</span>
+function UiIcon({ type, className = '' }) {
+  const paths = {
+    arrowUpRight: <><path d="M7 17 17 7" /><path d="M8 7h9v9" /></>,
+    arrowLeft: <><path d="m15 18-6-6 6-6" /></>,
+    arrowRight: <><path d="m9 18 6-6-6-6" /></>,
+    arrowUp: <><path d="m6 10 6-6 6 6" /><path d="M12 4v16" /></>,
+    play: <path d="m9 7 8 5-8 5Z" />,
+    pause: <><path d="M9 7v10" /><path d="M15 7v10" /></>,
+    sparkle: <path d="M12 3c.55 5.45 1.55 6.45 7 7-5.45.55-6.45 1.55-7 7-.55-5.45-1.55-6.45-7-7 5.45-.55 6.45-1.55 7-7Z" />,
+  }
+
+  return <svg className={`ui-icon ${className}`.trim()} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[type]}</svg>
+}
+
+const Arrow = () => <UiIcon type="arrowUpRight" />
 const PROJECT_AUTOPLAY_DELAY = 7000
+const marqueeItems = [
+  { label: 'Design', style: 'sans' },
+  { label: 'Código', style: 'mono' },
+  { label: 'Movimento', style: 'serif' },
+  { label: 'Experiência', style: 'sans' },
+  { label: 'Produto digital', style: 'serif' },
+  { label: 'Tecnologia', style: 'mono' },
+]
 
 function ContactIcon({ type }) {
   const paths = {
@@ -21,16 +43,15 @@ function ContactIcon({ type }) {
 }
 
 const stackGroups = [
-  { title: 'Front-End', index: '01', items: ['HTML', 'CSS', 'JavaScript', 'React', 'Vite'] },
-  { title: 'Mobile', index: '02', items: ['Kotlin', 'Android Studio', 'Jetpack Compose'] },
-  { title: 'Back-End', index: '03', items: ['Java', 'FastAPI', 'Node.js'] },
-  { title: 'Banco de Dados', index: '04', items: ['MySQL', 'SQLite'] },
-  { title: 'Ferramentas', index: '05', items: ['Git', 'GitHub', 'Figma', 'Postman'] },
+  { title: 'Desenvolvimento Web', index: '01', items: ['HTML', 'CSS', 'JAVASCRIPT', 'REACT'] },
+  { title: 'Design e Prototipação', index: '02', items: ['FIGMA', 'CANVA'] },
+  { title: 'Database e Ferramentas', index: '03', items: ['MYSQL', 'GIT', 'GITHUB', 'ANDROID STUDIO'] },
 ]
 
 function App() {
   const reduceMotion = useRef(window.matchMedia('(prefers-reduced-motion: reduce)').matches).current
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 640px)').matches)
+  const [marqueeRepeats, setMarqueeRepeats] = useState(() => Math.max(2, Math.ceil(window.innerWidth / 600) + 1))
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('Todos')
   const [activeProject, setActiveProject] = useState(0)
@@ -66,6 +87,15 @@ function App() {
 
     mobileQuery.addEventListener('change', updateDeviceMode)
     return () => mobileQuery.removeEventListener('change', updateDeviceMode)
+  }, [])
+
+  useEffect(() => {
+    const updateMarqueeRepeats = () => {
+      setMarqueeRepeats(Math.max(2, Math.ceil(window.innerWidth / 600) + 1))
+    }
+
+    window.addEventListener('resize', updateMarqueeRepeats)
+    return () => window.removeEventListener('resize', updateMarqueeRepeats)
   }, [])
 
   useEffect(() => {
@@ -262,7 +292,6 @@ function App() {
             <a href="#top">Início</a>
             <a href="#stack">Stack</a>
             <a href="#formacao">Formação</a>
-            <a href="#certificacoes">Certificações</a>
             <a href="#projetos">Projetos</a>
             <a href="#contato">Contato</a>
           </nav>
@@ -297,11 +326,18 @@ function App() {
 
         <section className="marquee" aria-hidden="true">
           <div className="marquee__ribbon">
-            <div className="marquee__track">
+            <div className="marquee__track" style={{ '--marquee-duration': `${marqueeRepeats * 12}s` }}>
               {[0, 1].map((group) => (
                 <div className="marquee__group" key={group}>
-                  <span>DESIGN · CÓDIGO · MOVIMENTO · EXPERIÊNCIA ·</span>
-                  <span>DESIGN · CÓDIGO · MOVIMENTO · EXPERIÊNCIA ·</span>
+                  {Array.from({ length: marqueeRepeats }, (_, repeat) => (
+                    <span className="marquee__sequence" key={`${group}-${repeat}`}>
+                      {marqueeItems.map((item) => (
+                        <span className={`marquee__item marquee__item--${item.style}`} key={`${group}-${repeat}-${item.label}`}>
+                          {item.label}<UiIcon type="sparkle" className="marquee__sparkle" />
+                        </span>
+                      ))}
+                    </span>
+                  ))}
                 </div>
               ))}
             </div>
@@ -330,9 +366,13 @@ function App() {
           </div>
         </section>
 
-        <section className="journey section" id="formacao">
-          <div className="shell journey__layout">
-            <div className="section-index" data-reveal><span>03</span><p>Formação acadêmica</p></div>
+        <section className="journey section" id="formacao" aria-label="Formação acadêmica e certificações">
+          <div className="journey__head shell" data-reveal>
+            <div className="section-index"><span>03</span><p>Formação acadêmica e certificações</p></div>
+            <h2>Aprendizado<br /><em>em evolução.</em></h2>
+            <p>Graduação e aprendizado complementar reunidos em uma trajetória prática e contínua.</p>
+          </div>
+          <div className="shell journey__cards">
             <div className="education" data-reveal>
               <div className="education__topline"><span>Universidade Católica de Brasília</span><span className="education__status">Em formação</span></div>
               <div className="education__content">
@@ -345,28 +385,11 @@ function App() {
               </div>
               <span className="education__mark">ADS</span>
             </div>
-          </div>
-        </section>
-
-        <section className="certifications section" id="certificacoes">
-          <div className="shell certifications__layout">
-            <div className="section-index" data-reveal><span>04</span><p>Certificações</p></div>
-            <div className="certifications__intro" data-reveal>
-              <h2>Aprendizado<br /><em>contínuo.</em></h2>
-              <p>Cursos, credenciais e estudos complementares que expandem minha prática além da formação acadêmica.</p>
-              <div className="certifications__meta">
-                <span>Formação complementar</span>
-                <span>Perfil atualizado</span>
-              </div>
-            </div>
             <a className="credential-card" href="https://www.linkedin.com/in/murilofariassilva/details/certifications/" target="_blank" rel="noreferrer" data-reveal>
-              <div className="credential-card__top"><span>Credenciais verificadas</span><Arrow /></div>
-              <div className="credential-card__identity">
-                <div className="credential-card__icon"><ContactIcon type="linkedin" /></div>
-                <span>LinkedIn</span>
-              </div>
+              <div className="credential-card__top"><ContactIcon type="linkedin" /><span>LinkedIn</span></div>
               <div className="credential-card__content">
-                <h3>Certificados e licenças</h3>
+                <small>Credenciais verificadas</small>
+                <h2>Certificados e licenças</h2>
                 <p>Consulte a relação atualizada de certificados publicados no meu perfil profissional.</p>
               </div>
               <span className="credential-card__link">Visualizar credenciais <Arrow /></span>
@@ -376,9 +399,9 @@ function App() {
 
         <section className="projects section" id="projetos">
           <div className="shell projects__head" data-reveal>
-            <div className="section-index"><span>05</span><p>Projetos selecionados</p></div>
-            <h2>Projetos<span>.</span></h2>
-            <p className="projects__count">{String(filteredProjects.length).padStart(2, '0')} projetos públicos</p>
+            <div className="section-index"><span>04</span><p>Projetos selecionados</p></div>
+            <h2>Projetos e<br /><em>atividades.</em></h2>
+            <p>Projetos acadêmicos, estudos e soluções práticas que registram minha evolução como desenvolvedor.</p>
           </div>
 
           <div className="filters shell" data-reveal>
@@ -405,7 +428,7 @@ function App() {
               </div>
               <p aria-live="polite">{isMobile ? 'Navegação manual no celular' : reduceMotion ? 'Movimento reduzido ativado' : !autoplayEnabled ? 'Reprodução automática desativada' : carouselHovered ? 'Navegação pausada' : 'Próximo projeto em 7s'}</p>
               <div className="project-carousel__buttons">
-                <button type="button" onClick={() => goToProject(activeProject - 1)} aria-label="Projeto anterior">←</button>
+                <button type="button" onClick={() => goToProject(activeProject - 1)} aria-label="Projeto anterior"><UiIcon type="arrowLeft" /></button>
                 <button
                   className="project-carousel__toggle"
                   type="button"
@@ -414,9 +437,9 @@ function App() {
                   onClick={() => setAutoplayEnabled((enabled) => !enabled)}
                   aria-label={!autoplayAvailable ? 'Troca automática indisponível neste dispositivo' : autoplayEnabled ? 'Pausar troca automática' : 'Retomar troca automática'}
                 >
-                  {autoplayEnabled ? 'II' : '▶'}
+                  <UiIcon type={autoplayEnabled ? 'pause' : 'play'} />
                 </button>
-                <button type="button" onClick={() => goToProject(activeProject + 1)} aria-label="Próximo projeto">→</button>
+                <button type="button" onClick={() => goToProject(activeProject + 1)} aria-label="Próximo projeto"><UiIcon type="arrowRight" /></button>
               </div>
             </div>
             <div
@@ -467,7 +490,7 @@ function App() {
 
         <section className="contact section" id="contato">
           <div className="shell contact__inner" data-reveal>
-            <div className="section-index"><span>06</span><p>Vamos conversar</p></div>
+            <div className="section-index"><span>05</span><p>Vamos conversar</p></div>
             <div className="contact__heading">
               <h2>Vamos criar algo<br /><em>relevante</em> juntos.</h2>
               <p className="contact__kicker">Estou aberto a oportunidades, colaborações e boas conversas sobre tecnologia, produto e novas ideias.</p>
@@ -491,9 +514,13 @@ function App() {
             </div>
           </div>
           <footer className="shell footer">
-            <p>© 2026 Murilo Farias Silva</p>
-            <div><a href="https://github.com/murilosilva100" target="_blank" rel="noreferrer">GitHub</a><a href="https://www.linkedin.com/in/murilofariassilva" target="_blank" rel="noreferrer">LinkedIn</a></div>
-            <a href="#top">Voltar ao topo ↑</a>
+            <p>(c) 2026 Murilo Farias Silva</p>
+            <div className="footer__links">
+              <a href="mailto:murilofsilva.dev@gmail.com">E-mail</a>
+              <a href="https://github.com/murilosilva100" target="_blank" rel="noreferrer">GitHub</a>
+              <a href="https://www.linkedin.com/in/murilofariassilva" target="_blank" rel="noreferrer">LinkedIn</a>
+            </div>
+            <a className="footer__top" href="#top">Voltar ao topo <UiIcon type="arrowUp" /></a>
           </footer>
         </section>
       </main>
