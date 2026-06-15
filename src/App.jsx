@@ -543,7 +543,7 @@ function App() {
           <div className="shell contact__inner" data-reveal>
             <div className="contact__head">
               <div className="section-index"><span>05</span><p>Vamos conversar</p></div>
-              <h2>Vamos criar algo<br /><em>relevante</em> juntos.</h2>
+              <h2>Vamos criar algo<br /><em>relevante.</em></h2>
               <p className="contact__kicker">Estou aberto a oportunidades, colaborações e boas conversas sobre tecnologia, produto e novas ideias.</p>
             </div>
             <div className="contact__channels">
@@ -571,7 +571,6 @@ function App() {
               <a href="https://github.com/murilosilva100" target="_blank" rel="noreferrer">GitHub</a>
               <a href="https://www.linkedin.com/in/murilofariassilva" target="_blank" rel="noreferrer">LinkedIn</a>
             </div>
-            <a className="footer__top" href="#top">Voltar ao topo <UiIcon type="arrowUp" /></a>
           </footer>
         </section>
       </main>
