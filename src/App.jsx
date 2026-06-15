@@ -59,6 +59,7 @@ function App() {
   const [carouselAnimating, setCarouselAnimating] = useState(false)
   const [autoplayEnabled, setAutoplayEnabled] = useState(() => !reduceMotion && !window.matchMedia('(max-width: 640px)').matches)
   const [headerVisible, setHeaderVisible] = useState(true)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [scrollProgress, setScrollProgress] = useState(0)
   const mainRef = useRef(null)
   const cursorRef = useRef(null)
@@ -83,11 +84,31 @@ function App() {
     const updateDeviceMode = (event) => {
       setIsMobile(event.matches)
       if (event.matches) setAutoplayEnabled(false)
+      if (!event.matches) setMobileMenuOpen(false)
     }
 
     mobileQuery.addEventListener('change', updateDeviceMode)
     return () => mobileQuery.removeEventListener('change', updateDeviceMode)
   }, [])
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined
+
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false)
+    }
+
+    setHeaderVisible(true)
+    window.clearTimeout(headerTimerRef.current)
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [mobileMenuOpen])
 
   useEffect(() => {
     const updateMarqueeRepeats = () => {
@@ -280,15 +301,15 @@ function App() {
       <div className="page-progress" aria-hidden="true"><span style={{ transform: `scaleX(${scrollProgress})` }} /></div>
       <main id="conteudo" ref={mainRef} tabIndex="-1">
         <header
-          className={`nav ${headerVisible ? 'nav--visible' : 'nav--hidden'} ${scrollProgress === 0 ? 'nav--top' : ''}`}
+          className={`nav ${headerVisible ? 'nav--visible' : 'nav--hidden'} ${scrollProgress === 0 ? 'nav--top' : ''} ${mobileMenuOpen ? 'nav--menu-open' : ''}`}
           onMouseEnter={showHeader}
           onFocusCapture={() => {
             setHeaderVisible(true)
             window.clearTimeout(headerTimerRef.current)
           }}
         >
-          <a className="logo" href="#top" aria-label="Voltar ao início">M<span>F</span></a>
-          <nav aria-label="Navegação principal">
+          <a className="logo" href="#top" aria-label="Voltar ao início" onClick={() => setMobileMenuOpen(false)}>M<span>F</span></a>
+          <nav className="desktop-nav" aria-label="Navegação principal">
             <a href="#top">Início</a>
             <a href="#stack">Stack</a>
             <a href="#formacao">Formação</a>
@@ -296,6 +317,39 @@ function App() {
             <a href="#contato">Contato</a>
           </nav>
           <a className="availability" href="#contato"><i /> Disponível para projetos</a>
+          <button
+            className="mobile-menu__toggle"
+            type="button"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-navigation"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+          >
+            <span className="mobile-menu__label" aria-hidden="true">
+              <span>Mais</span>
+              <span>Fechar</span>
+            </span>
+            <span className="sr-only">{mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}</span>
+            <i aria-hidden="true" />
+          </button>
+          {isMobile && mobileMenuOpen && (
+            <div className="mobile-menu" id="mobile-navigation">
+              <nav aria-label="Navegação mobile">
+                {[
+                  ['01', 'Início', '#top'],
+                  ['02', 'Stack', '#stack'],
+                  ['03', 'Formação', '#formacao'],
+                  ['04', 'Projetos', '#projetos'],
+                  ['05', 'Contato', '#contato'],
+                ].map(([index, label, href]) => (
+                  <a href={href} onClick={() => setMobileMenuOpen(false)} key={href}>
+                    <span>{index}</span>
+                    <strong>{label}</strong>
+                    <Arrow />
+                  </a>
+                ))}
+              </nav>
+            </div>
+          )}
         </header>
 
         <section className="hero" id="top">
@@ -352,7 +406,7 @@ function App() {
           </div>
           <div className="stack__grid shell">
             {stackGroups.map((group) => (
-              <article className="stack-card" key={group.title} data-reveal>
+              <article className="stack-card" key={group.title} tabIndex="0" aria-label={`${group.title}: ${group.items.join(', ')}`} data-reveal>
                 <div className="stack-card__head">
                   <span>/{group.index}</span>
                   <h3>{group.title}</h3>
@@ -483,15 +537,12 @@ function App() {
               </div>
             </div>
           </div>
-          <div className="all-projects shell" data-reveal>
-            <a href="https://github.com/murilosilva100" target="_blank" rel="noreferrer">Ver perfil completo no GitHub <Arrow /></a>
-          </div>
         </section>
 
         <section className="contact section" id="contato">
           <div className="shell contact__inner" data-reveal>
-            <div className="section-index"><span>05</span><p>Vamos conversar</p></div>
-            <div className="contact__heading">
+            <div className="contact__head">
+              <div className="section-index"><span>05</span><p>Vamos conversar</p></div>
               <h2>Vamos criar algo<br /><em>relevante</em> juntos.</h2>
               <p className="contact__kicker">Estou aberto a oportunidades, colaborações e boas conversas sobre tecnologia, produto e novas ideias.</p>
             </div>
